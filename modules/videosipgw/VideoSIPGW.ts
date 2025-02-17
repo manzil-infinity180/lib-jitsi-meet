@@ -1,22 +1,28 @@
 import { getLogger } from '@jitsi/logger';
 const logger = getLogger(__filename);
-
+import { VideoSIPGWStateConstants } from './VideoSIPGWConstants';
 import { XMPPEvents } from '../../service/xmpp/XMPPEvents';
-
 import JitsiVideoSIPGWSession from './JitsiVideoSIPGWSession';
 import * as Constants from './VideoSIPGWConstants';
+import ChatRoom from '../xmpp/ChatRoom';
 
 /**
  * Main video SIP GW handler. Stores references of all created sessions.
  */
 export default class VideoSIPGW {
+    public chatRoom: ChatRoom;
+    eventEmitter: any
+    sessions: {};
+    sessionStateChangeListener: any;
+    state: any;
 
     /**
      * Creates new handler.
      *
      * @param {ChatRoom} chatRoom - Tha chat room to handle.
      */
-    constructor(chatRoom) {
+    
+    constructor(chatRoom: ChatRoom) {
         this.chatRoom = chatRoom;
         this.eventEmitter = chatRoom.eventEmitter;
         logger.debug('creating VideoSIPGW');
@@ -37,7 +43,7 @@ export default class VideoSIPGW {
      * @param {Object} node the presence node Object to handle.
      * Object representing part of the presence received over xmpp.
      */
-    handleJibriSIPState(node) {
+    handleJibriSIPState(node: { attributes?: { state?: VideoSIPGWStateConstants, sipaddress?: string, failure_reason?: string } }) {
         const attributes = node.attributes;
 
         if (!attributes) {
@@ -84,7 +90,7 @@ export default class VideoSIPGW {
      * @param {string} displayName - The display name to use.
      * @returns {JitsiVideoSIPGWSession|Error}
      */
-    createVideoSIPGWSession(sipAddress, displayName) {
+    createVideoSIPGWSession(sipAddress: string, displayName: string) {
         if (this.sessions[sipAddress]) {
             logger.warn('There was already a Video SIP GW session for address',
                 sipAddress);
@@ -108,7 +114,7 @@ export default class VideoSIPGW {
      *
      * @param {options} event - { address, oldState, newState, displayName }
      */
-    sessionStateChanged(event) {
+    sessionStateChanged(event: { address: any; newState: VideoSIPGWStateConstants; }) {
         const address = event.address;
 
         if (event.newState === Constants.STATE_OFF
