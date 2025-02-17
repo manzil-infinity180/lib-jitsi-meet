@@ -12,6 +12,12 @@ export default class AudioMixer {
     /**
      * Create AudioMixer instance.
      */
+    private _started: boolean;
+    private _streamsToMix:  MediaStream[];
+    private _streamMSSArray: MediaStreamAudioSourceNode[];
+    private _mixedMSD:  MediaStreamAudioDestinationNode;
+    private _audioContext: AudioContext;
+
     constructor() {
         this._started = false;
         this._streamsToMix = [];
@@ -23,7 +29,7 @@ export default class AudioMixer {
      *
      * @param {MediaStream} stream - MediaStream to be mixed.
      */
-    addMediaStream(stream) {
+    addMediaStream(stream:MediaStream) {
         if (!stream.getAudioTracks()) {
             logger.warn('Added MediaStream doesn\'t contain audio tracks.');
         }
