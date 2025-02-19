@@ -15,12 +15,22 @@ const logger = getLogger(__filename);
  * The lib-jitsi-meet layer for {@link Strophe.Connection}.
  */
 export default class XmppConnection extends Listenable {
+    maxRetries: number;
+    private _rawInputTracker: LastSuccessTracker;
+    private _resumeTask: ResumeTask;
+    private _deferredIQs: any[]; // TODO: Array<DeferredSendIQ>
+    private _oneSuccessfulConnect: boolean;
+    private _status: any;
+    public pingOptions: unknown
+    ping: any;
+    private _wsKeepAlive : NodeJS.Timeout
+
     /**
      * The list of {@link XmppConnection} events.
      *
      * @returns {Object}
      */
-    static get Events() {
+    static get Events() : { CONN_STATUS_CHANGED: 'CONN_STATUS_CHANGED', CONN_SHARD_CHANGED: 'CONN_SHARD_CHANGED' }{
         return {
             CONN_STATUS_CHANGED: 'CONN_STATUS_CHANGED',
             CONN_SHARD_CHANGED: 'CONN_SHARD_CHANGED'
@@ -32,7 +42,7 @@ export default class XmppConnection extends Listenable {
      *
      * @returns {Strophe.Status}
      */
-    static get Status() {
+    static get Status() : Strophe.Status {
         return Strophe.Status;
     }
 
@@ -52,7 +62,15 @@ export default class XmppConnection extends Listenable {
      * if missing the serviceUrl url will be used.
      * @param {Object} [options.xmppPing] - The xmpp ping settings.
      */
-    constructor({ enableWebsocketResume, websocketKeepAlive, websocketKeepAliveUrl, serviceUrl, shard, xmppPing }) {
+    private _options: {
+        pingOptions: any; enableWebsocketResume: boolean, websocketKeepAlive: number, websocketKeepAliveUrl: string, serviceUrl: string, shard: string, xmppPing: unknown 
+}
+    private _stropheConn: Strophe.Connection 
+    private _usesWebsocket: boolean;
+    
+    constructor({ enableWebsocketResume, websocketKeepAlive, websocketKeepAliveUrl, serviceUrl, shard, xmppPing }
+        :{ enableWebsocketResume: boolean, websocketKeepAlive: number, websocketKeepAliveUrl: string, serviceUrl: string, shard: string, xmppPing: unknown }
+    ) {
         super();
         this._options = {
             enableWebsocketResume: typeof enableWebsocketResume === 'undefined' ? true : enableWebsocketResume,
@@ -106,7 +124,7 @@ export default class XmppConnection extends Listenable {
      *
      * @returns {boolean}
      */
-    get connected() {
+    get connected() : boolean{
         const websocket = this._stropheConn && this._stropheConn._proto && this._stropheConn._proto.socket;
 
         return (this._status === Strophe.Status.CONNECTED || this._status === Strophe.Status.ATTACHED)
@@ -118,7 +136,7 @@ export default class XmppConnection extends Listenable {
      *
      * @returns {Strophe.Connection.disco}
      */
-    get disco() {
+    get disco(): Strophe.Connection.disco {
         return this._stropheConn.disco;
     }
 
@@ -127,7 +145,7 @@ export default class XmppConnection extends Listenable {
      *
      * @returns {boolean}
      */
-    get disconnecting() {
+    get disconnecting() : boolean {
         return this._stropheConn.disconnecting === true;
     }
 
@@ -136,7 +154,7 @@ export default class XmppConnection extends Listenable {
      *
      * @returns {string|null}
      */
-    get domain() {
+    get domain() : string|null{
         return this._stropheConn.domain;
     }
 
@@ -145,7 +163,7 @@ export default class XmppConnection extends Listenable {
      * for BOSH.
      * @returns {boolean}
      */
-    get isUsingWebSocket() {
+    get isUsingWebSocket(): boolean {
         return this._usesWebsocket;
     }
 
@@ -285,7 +303,7 @@ export default class XmppConnection extends Listenable {
      * @param {*} args - The rest of the arguments passed by Strophe.
      * @private
      */
-    _stropheConnectionCb(targetCallback, status, ...args) {
+    _stropheConnectionCb(targetCallback: (arg0: any, arg1: any) => void, status: Strophe.Status, ...args: any[]) {
         this._status = status;
 
         let blockCallback = false;
@@ -494,7 +512,7 @@ export default class XmppConnection extends Listenable {
      * @param {Element|Strophe.Builder} stanza - The stanza to send.
      * @returns {void}
      */
-    send(stanza) {
+    send(stanza:  Element | Strophe.Builder) {
         if (!this.connected) {
             logger.error(`Trying to send stanza while not connected. Status:${this._status} Proto:${
                 this.isUsingWebSocket ? this._stropheConn?._proto?.socket?.readyState : 'bosh'
@@ -514,7 +532,7 @@ export default class XmppConnection extends Listenable {
      * @param {number} timeout - The time specified in milliseconds for a timeout to occur.
      * @returns {number} - The id used to send the IQ.
      */
-    sendIQ(elem, callback, errback, timeout) {
+    sendIQ(elem:unknown, callback: ( params: unknown ) => unknown, errback: ( params: unknown ) => unknown, timeout: number) {
         if (!this.connected) {
             errback('Not connected');
 
@@ -534,7 +552,7 @@ export default class XmppConnection extends Listenable {
      * The time when the connection is reconnecting is included, which means that
      * the IQ may never be sent and still fail with a timeout.
      */
-    sendIQ2(iq, { timeout }) {
+    sendIQ2(iq: Element, { timeout }: {timeout: number}) {
         return new Promise((resolve, reject) => {
             if (this.connected) {
                 this.sendIQ(
@@ -585,7 +603,7 @@ export default class XmppConnection extends Listenable {
      * @param {number} timeout - The time specified in milliseconds for a timeout to occur.
      * @returns {number} - The id used to send the presence.
      */
-    sendPresence(elem, callback, errback, timeout) {
+    sendPresence(elem:Element, callback: ( params: unknown ) => unknown, errback: ( params: unknown ) => unknown, timeout: number) {
         if (!this.connected) {
             errback('Not connected');
 
